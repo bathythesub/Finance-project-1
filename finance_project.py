@@ -183,7 +183,7 @@ def weight_check(weights_array):
 
 
 #reading the file and getting the stock prices for each stock
-data = read_csv("/home/charlie-godfrey/code/python/.venv/Finance project/finance_data.csv")
+data = read_csv("personal file path")
 stock_data = get_stock(data)
 gs_prices = get_stock_prices(data, 0)
 has_prices = get_stock_prices(data, 1)
