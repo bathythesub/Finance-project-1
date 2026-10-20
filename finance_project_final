@@ -1,0 +1,401 @@
+import numpy as np
+from matplotlib import pyplot as plt
+import pandas as pd
+#csv format: GS, HAS, LMT, NVDA, SPY
+
+"""
+These are the functions to read/clean the data and get the stock prices for each stock
+"""
+def read_csv(file_path):
+    """
+    Reads a CSV file and returns the data as a Numpy array.
+    The first entry in the array is the date, then GS, HAS, LMT, NVDA, SPY
+    """
+    data = np.genfromtxt(file_path, delimiter=',', skip_header=1)
+    return data
+
+def get_stock(data):
+    """
+    returns a numpy array of the stock prices for GS, HAS, LMT, NVDA, SPY
+    """
+    return data[:, 1:6]
+
+#be carefull of an indexing error when comparing this to retruns, we start returns from index 1
+def get_stock_prices(data, stock_index):
+    """
+    returns a numpy array of the stock prices for a specific stock
+    stock_index: 0 for GS, 1 for HAS, 2 for LMT, 3 for NVDA, 4 for SPY
+    """
+    return data[:, stock_index + 1]
+
+#hypothetically this works, realistically need to write some unit tests
+#thatll be a fun use of agents!
+
+"""
+These are the returns functions
+"""
+def find_returns(data):
+    """
+    returns the daily percentage returns for a given stock
+    assumes data is a 1D array of stock prices for one specific stock
+    """
+    return_array = np.array([])
+    for i in range(1, data.shape[0]):
+        #will want to cover the NaN case here, but for now just assume no NaNs
+        diff = data[i] - data[i-1]
+        percente_change = diff / data[i-1]
+        return_array = np.append(return_array, percente_change)
+    return return_array
+
+def log_returns(data):
+    """
+    returns the daily log returns for a given stock
+    assumes data is a 1D array of stock prices for one specific stock
+    """
+    return_array = np.array([])
+    for i in range(1, data.shape[0]):
+        #will want to cover the NaN case here, but for now just assume no NaNs
+        log_return = np.log(data[i] / data[i-1])
+        return_array = np.append(return_array, log_return)
+    return return_array
+
+def mean_returns(data):
+    """
+    returns the mean daily returns for a given stock
+    assumes data is a 1D array of stock prices for one specific stock
+    """
+    return np.mean(data)
+
+def _build_average_returns_table(returns_by_asset, column_name):
+    """Build a pandas table of average daily returns, expressed as percentages."""
+    return (
+        pd.DataFrame(returns_by_asset)
+        .mean()
+        .mul(100)
+        .rename_axis("Asset")
+        .reset_index(name=column_name)
+    )
+
+def average_return_rate_table(returns_by_asset):
+    """Return average daily simple return rates for each asset."""
+    return _build_average_returns_table(
+        returns_by_asset, "Average daily return rate (%)"
+    )
+
+def average_returns_table(log_returns_by_asset):
+    """Return average daily log returns for each asset."""
+    return _build_average_returns_table(
+        log_returns_by_asset, "Average daily log return (%)"
+    )
+
+def variance_returns(data):
+    """
+    returns the variance of daily returns for a given stock
+    assumes data is a 1D array of stock prices for one specific stock
+    """
+    return np.var(data)
+def build_matrix(data1, data2, data3, data4, data5):
+    matrix = np.array([data1, data2, data3, data4, data5])
+    return matrix.T  # Transpose to have stocks as columns and returns as rows
+
+
+#note, i think we need to use the covariance matrix with our orignal (trimmed) data
+#but we can try it with the returns data as well
+def covariance_matrix(matrix):
+    """
+    returns the covariance matrix for the given stock data
+    assumes data is a 2D array of returns for multiple stocks
+    """
+    return np.cov(matrix, rowvar=False)
+
+#next, we want to find the weights for a portfolio consisting of these stocks. 
+"""
+these are the functions for deciding weights for the portfolio."""
+#i think this is the correct formula
+def global_minimum_variance_portfolio(cov_matrix, mean_data):
+    """
+    returns the weights for the global minimum variance portfolio
+    assumes cov_matrix is a 2D array of the covariance matrix for multiple stocks
+    """
+    inv_cov_matrix = np.linalg.inv(cov_matrix)
+    ones = np.ones(inv_cov_matrix.shape[0])
+    m = np.array(mean_data)
+    weights = (inv_cov_matrix @ ones) / (ones.T @ inv_cov_matrix @ ones)
+    return weights
+
+# we gotta fix the market portfolio function
+
+def set_rate_portfolio(cov_matrix, mean_data):
+    """
+    returns the weights for the portfolio that sets the rate of return to the risk-free rate
+    assumes cov_matrix is a 2D array of the covariance matrix for multiple stocks
+    """
+    inv_cov_matrix = np.linalg.inv(cov_matrix)
+    ones = np.ones(inv_cov_matrix.shape[0])
+    m = np.array(mean_data)
+    weights = ((m - 0.04 * ones) @ inv_cov_matrix) / ((m - 0.04 * ones) @ inv_cov_matrix @ ones.T)
+    return weights
+
+def diversified_portfolio(cov_matrix, mean_data):
+    """
+    returns the weights for the diversified portfolio, assuming risk-free rate is 0
+    assumes cov_matrix is a 2D array of the covariance matrix for multiple stocks
+    """
+    inv_cov_matrix = np.linalg.inv(cov_matrix)
+    ones = np.ones(inv_cov_matrix.shape[0])
+    m = np.array(mean_data)
+    weights = (m  @ inv_cov_matrix) / (m @ inv_cov_matrix @ones.T)
+    return weights
+
+def build_portfolio(weights_array, stock_array):
+    """
+    simulates a portfolio with each stock wieghted by the given weights
+    assumes weights_array is a 1D array of weights for each stock
+    assumes stock_array is a 2D array of stock prices for multiple stocks
+    rerturns a 1D array of the portfolio value for each day
+    """
+    return np.dot(stock_array, weights_array)
+
+
+#these are all the graphic functions
+def scatter_plot(data, xlabel, ylabel, fig_title):
+    """
+    returns a scatter plot of the returns for the given stock data
+    Assumes the x-axis is days, and y axis is retruns.
+    """
+    plt.scatter(range(data.shape[0]), data)
+    plt.xlabel(f"{xlabel}")
+    plt.ylabel(f"{ylabel}")
+    plt.title(f"{fig_title}")
+    plt.savefig(f"/home/charlie-godfrey/code/python/.venv/Finance project/{fig_title}.png")
+
+def line_plot(data, xlabel, ylabel, fig_title):
+    """
+    returns a line plot for the given stock data
+    Assumes the x-axis is days, and y axis is the data.
+    """
+    plt.plot(range(data.shape[0]), data)
+    plt.xlabel(f"{xlabel}")
+    plt.ylabel(f"{ylabel}")
+    plt.title(f"{fig_title}")
+    plt.savefig(f"/home/charlie-godfrey/code/python/.venv/Finance project/{fig_title}.png")
+
+#this is going to be way to long, maybe we just put a truncated example?
+def table_plot(data_matrix, fig_title):
+    """
+    returns a table plot for the given stock data
+    Assumes the x-axis is days, and y axis is the data.
+    """
+    nrows = len(data_matrix)
+    fig_height = max(3, nrows * 0.35)
+    fig, ax = plt.subplots(figsize=(10, fig_height))
+    ax.axis('tight')
+    ax.axis('off')
+    table = ax.table(cellText=data_matrix, colLabels=["GS", "HAS", "LMT", "NVDA", "SPY"], loc='center')
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1.0, 1.5)
+    plt.title(f"{fig_title}")
+    plt.savefig(f"/home/charlie-godfrey/code/python/.venv/Finance project/{fig_title}.png")
+
+# this is just a checker for weights adding up to one
+def weight_check(weights_array):
+    """
+    checks if the weights add up to 1
+    assumes weights_array is a 1D array of weights for each stock
+    """
+    return np.sum(weights_array)
+
+
+def sharpe_ratio(mean, var, rate):
+    """
+    the sharpe ratio. assumer var not 0
+    """
+    return (mean - rate)/var
+
+def actualized_return(data):
+    """
+    because im lazy lol
+    """
+    sum = 0
+    for i in data:
+        sum += i
+    return sum
+
+def dict_to_array(dict):
+    result = []
+    for i in dict.values():
+        result.append(i)
+    return result
+
+#reading the file and getting the stock prices for each stock
+data = read_csv("/home/charlie-godfrey/code/python/.venv/Finance project/finance_data.csv")
+stock_data = get_stock(data)
+gs_prices = get_stock_prices(data, 0)
+has_prices = get_stock_prices(data, 1)
+lmt_prices = get_stock_prices(data, 2)
+nvda_prices = get_stock_prices(data, 3)
+spy_prices = get_stock_prices(data, 4)  
+
+#variance of stock prices
+gs_variance_prices = variance_returns(gs_prices)
+has_variance_prices = variance_returns(has_prices)
+lmt_variance_prices = variance_returns(lmt_prices)
+nvda_variance_prices = variance_returns(nvda_prices)
+spy_variance_prices = variance_returns(spy_prices)  
+
+
+#percentage retrun data
+gs_returns = find_returns(get_stock_prices(data, 0))
+has_returns = find_returns(get_stock_prices(data, 1))
+lmt_returns = find_returns(get_stock_prices(data, 2))
+nvda_returns = find_returns(get_stock_prices(data, 3))
+spy_returns = find_returns(get_stock_prices(data, 4))
+
+
+#log retrun data
+gs_ln_returns = log_returns(get_stock_prices(data, 0))
+has_ln_returns = log_returns(get_stock_prices(data, 1))
+lmt_ln_returns = log_returns(get_stock_prices(data, 2))
+nvda_ln_returns = log_returns(get_stock_prices(data, 3))
+spy_ln_returns = log_returns(get_stock_prices(data, 4))
+
+#variance of retruns data
+gs_variance_returns = variance_returns(gs_returns)
+has_variance_returns = variance_returns(has_returns)
+lmt_variance_returns = variance_returns(lmt_returns)
+nvda_variance_returns = variance_returns(nvda_returns)
+spy_variance_returns = variance_returns(spy_returns)
+
+
+#mean return data
+gs_mean_return = mean_returns(gs_returns)
+has_mean_return = mean_returns(has_returns)
+lmt_mean_return = mean_returns(lmt_returns)
+nvda_mean_return = mean_returns(nvda_returns)
+spy_mean_return = mean_returns(spy_returns)
+#print(f"Mean Returns: GS: {gs_mean_return}, HAS: {has_mean_return}, LMT: {lmt_mean_return}, NVDA: {nvda_mean_return}, SPY: {spy_mean_return}")
+
+#dictionary of returns for the pandas tables
+returns_by_asset = {
+    "GS": gs_returns,
+    "HAS": has_returns,
+    "LMT": lmt_returns,
+    "NVDA": nvda_returns,
+    "SPY": spy_returns,
+}
+log_returns_by_asset = {
+    "GS": gs_ln_returns,
+    "HAS": has_ln_returns,
+    "LMT": lmt_ln_returns,
+    "NVDA": nvda_ln_returns,
+    "SPY": spy_ln_returns,
+}
+
+
+average_return_rate_summary = average_return_rate_table(returns_by_asset)
+average_returns_summary = average_returns_table(log_returns_by_asset)
+
+#print out the returns and log returns for each stock
+
+# print("\nAverage daily return rates:")
+# print(average_return_rate_summary.to_string(
+#     index=False,
+#     formatters={"Average daily return rate (%)": "{:.4f}%".format},
+# ))
+# print("\nAverage daily log returns:")
+# print(average_returns_summary.to_string(
+#     index=False,
+#     formatters={"Average daily log return (%)": "{:.4f}%".format},
+# ))
+
+
+price_matrix = build_matrix(gs_prices, has_prices, lmt_prices, nvda_prices, spy_prices)
+percentage_returns = build_matrix(gs_returns, has_returns, lmt_returns, nvda_returns, spy_returns)
+ln_returns = build_matrix(gs_ln_returns, has_ln_returns, lmt_ln_returns, nvda_ln_returns, spy_ln_returns)
+
+#the covariance matrices for the price
+cov_matrix_price = covariance_matrix(price_matrix)
+
+#put the mean returns in an array
+mean_array = np.array([gs_mean_return, has_mean_return, lmt_mean_return, nvda_mean_return, spy_mean_return])
+
+#using the price covariance matrix
+set_rate_portfolio_weights_prices = set_rate_portfolio(cov_matrix_price, mean_array)
+diversified_portfolio_weights_prices = diversified_portfolio(cov_matrix_price, mean_array)
+market_portfolio_weights_prices = global_minimum_variance_portfolio(cov_matrix_price, mean_array)
+
+market_portfolio_weights = {
+    "GS_w": market_portfolio_weights_prices[0],
+    "HAS_w": market_portfolio_weights_prices[1],
+    "LMT_w": market_portfolio_weights_prices[2],
+    "NVDA_w": market_portfolio_weights_prices[3],
+    "SPY_w": market_portfolio_weights_prices[4],
+}
+
+set_rate_weights = {
+    "GS_w": set_rate_portfolio_weights_prices[0],
+    "HAS_w": set_rate_portfolio_weights_prices[1],
+    "LMT_w": set_rate_portfolio_weights_prices[2],
+    "NVDA_w": set_rate_portfolio_weights_prices[3],
+    "SPY_w": set_rate_portfolio_weights_prices[4], 
+}
+
+diversified_weights = {
+    "GS_w": diversified_portfolio_weights_prices[0],
+    "HAS_w": diversified_portfolio_weights_prices[1],
+    "LMT_w": diversified_portfolio_weights_prices[2],
+    "NVDA_w": diversified_portfolio_weights_prices[3],
+    "SPY_w": diversified_portfolio_weights_prices[4],
+}
+#pretty sure this is correcct
+# market_port_weight_sum = 0
+# print("\nMarket Portfolio Weights:")
+# for stock, weight in market_portfolio_weights.items():
+#     print(f"{stock}: {weight}") 
+#     market_port_weight_sum += weight
+# print(f"Sum of Market Portfolio Weights: {market_port_weight_sum}")
+
+# set_rate_weight_sum = 0
+# print("\nSet Rate Portfolio Weights:")
+# for stock, weight in set_rate_weights.items():
+#     print(f"{stock}: {weight}")
+#     set_rate_weight_sum += weight
+# print(f"Sum of Set Rate Portfolio Weights: {set_rate_weight_sum}")
+
+# diversified_weight_sum = 0
+# print("\nDiversified Portfolio Weights:")
+# for stock, weight in diversified_weights.items():
+#     print(f"{stock}: {weight}")
+#     diversified_weight_sum += weight
+# print(f"Sum of Diversified Portfolio Weights: {diversified_weight_sum}")
+
+
+#building the portfolios to back test
+minimum_variance_portfolio_prices = build_portfolio(market_portfolio_weights_prices, price_matrix)
+set_rate_portfolio_prices = build_portfolio(set_rate_portfolio_weights_prices, price_matrix)
+diversified_portfolio_prices = build_portfolio(diversified_portfolio_weights_prices, price_matrix)
+
+#the mean returns of each portfolio over the last three months
+minimum_port_expected = np.mean(find_returns(minimum_variance_portfolio_prices[:120]))
+set_rate_port_expected = np.mean(find_returns(set_rate_portfolio_prices[:120]))
+diversified_port_expected = np.mean(find_returns(diversified_portfolio_prices[:120]))
+
+#actualized returns of each portfolio
+minimum_port_actualized = actualized_return(find_returns(minimum_variance_portfolio_prices[:120]))
+set_rate_port_actualized = actualized_return(find_returns(set_rate_portfolio_prices[:120]))
+diversified_port_actualized = actualized_return(find_returns(diversified_portfolio_prices[:120]))
+
+#the variance in returns over the last three ish months
+minimum_port_var = np.var(find_returns(minimum_variance_portfolio_prices[:120]))
+set_rate_port_var = np.var(find_returns(set_rate_portfolio_prices[:120]))
+diversified_port_var = np.var(find_returns(diversified_portfolio_prices[:120]))
+
+#sharpe ratio test for each portfolio
+mini_sharpe = sharpe_ratio(minimum_port_actualized, minimum_port_actualized, 0)
+set_sharpe = sharpe_ratio(set_rate_port_actualized, set_rate_port_var, 0.04)
+div_sharpe = sharpe_ratio(diversified_port_actualized, diversified_port_var, 0)
+
+print(f"Minimum Variance Portfolio Sharpe Ratio: {mini_sharpe}")
+print(f"Set Rate of 4% Sharpe Ratio: {set_sharpe}")
+print(f"Diversified Portfolio Shapre Ratio: {div_sharpe}")
